@@ -49,7 +49,7 @@ export default function ChatInterface() {
         if (response.data.format === 'table' && Array.isArray(response.data.data)) {
           // Convert array of objects to table format
           const columns = Object.keys(response.data.data[0] || {});
-          const rows = response.data.data.map(item => columns.map(col => item[col]));
+          const rows = response.data.data.map((item: any) => columns.map(col => item[col]));
           
           assistantMessage = {
             id: (Date.now() + 1).toString(),
