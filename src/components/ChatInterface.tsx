@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useState, useEffect, useCallback } from 'react'
 import { Send, Loader2, History, Trash2 } from 'lucide-react'
 import MessageBubble from './MessageBubble'
+import { api } from '@/lib/api'
+import { clearAuth, getAuth } from '@/lib/auth'
 
 interface Message {
   id: string
@@ -29,28 +30,51 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [userId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+  const [userId] = useState(() => getAuth()?.user?.id || 'anonymous')
   const [showHistory, setShowHistory] = useState(false)
   const [conversationHistory, setConversationHistory] = useState<ConversationHistory[]>([])
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  // Load messages from localStorage on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedMessages = localStorage.getItem(`cricket-chat-messages-${userId}`)
+      if (savedMessages) {
+        try {
+          setMessages(JSON.parse(savedMessages))
+        } catch (error) {
+          console.error('Error loading saved messages:', error)
+        }
+      }
+    }
+  }, [userId])
 
-  const loadConversationHistory = async () => {
+  // Save messages to localStorage whenever messages change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0) {
+      localStorage.setItem(`cricket-chat-messages-${userId}`, JSON.stringify(messages))
+    }
+  }, [messages, userId])
+
+  const loadConversationHistory = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/cricket/history/${userId}?limit=20`)
-      if (response.data.success) {
-        setConversationHistory(response.data.data)
+      const response = await api.get(`/cricket/history?limit=20`)
+      if (response.data?.success) {
+        setConversationHistory(response.data.data || [])
       }
     } catch (error) {
       console.error('Error loading history:', error)
     }
-  }
+  }, [])
 
   const clearMemory = async () => {
     try {
-      await axios.post(`${API_URL}/cricket/clear-memory/${userId}`)
+      await api.post(`/cricket/clear-memory`)
       setMessages([])
       setConversationHistory([])
+      // Clear localStorage as well
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`cricket-chat-messages-${userId}`)
+      }
     } catch (error) {
       console.error('Error clearing memory:', error)
     }
@@ -60,7 +84,7 @@ export default function ChatInterface() {
     if (showHistory) {
       loadConversationHistory()
     }
-  }, [showHistory])
+  }, [showHistory, loadConversationHistory])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +102,7 @@ export default function ChatInterface() {
     setIsLoading(true)
 
     try {
-      const response = await axios.post(`${API_URL}/cricket/ask?userId=${userId}`, {
+      const response = await api.post(`/cricket/ask`, {
         question: input.trim(),
       })
 
@@ -132,21 +156,35 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+    <div className="rounded-2xl bg-slate-900/70 shadow-2xl shadow-emerald-500/15 ring-1 ring-slate-800 backdrop-blur">
       {/* Header with Memory Controls */}
-      <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cricket Data Agent</h2>
+      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 sm:px-5">
+        <div>
+          <h2 className="text-base font-semibold text-slate-50 sm:text-lg">Cricket Data Agent</h2>
+          <p className="mt-0.5 text-xs text-slate-400 sm:text-[13px]">
+            Chat, remember, and analyze Test, ODI &amp; T20 stats.
+          </p>
+        </div>
         <div className="flex space-x-2">
           <button
+            onClick={() => {
+              clearAuth()
+              window.location.href = '/login'
+            }}
+            className="hidden rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-slate-700 sm:inline-flex"
+          >
+            Logout
+          </button>
+          <button
             onClick={() => setShowHistory(!showHistory)}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm flex items-center space-x-1"
+            className="flex items-center space-x-1 rounded-full bg-emerald-500 px-3 py-1 text-xs font-medium text-slate-950 hover:bg-emerald-400 sm:text-sm"
           >
             <History className="w-4 h-4" />
             <span>{showHistory ? 'Hide' : 'Show'} History</span>
           </button>
           <button
             onClick={clearMemory}
-            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm flex items-center space-x-1"
+            className="hidden items-center space-x-1 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500 sm:flex"
           >
             <Trash2 className="w-4 h-4" />
             <span>Clear Memory</span>
@@ -154,19 +192,21 @@ export default function ChatInterface() {
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex flex-col md:flex-row">
         {/* Chat Messages */}
-        <div className={`${showHistory ? 'w-2/3' : 'w-full'} flex flex-col`}>
+        <div className={`${showHistory ? 'md:w-2/3' : 'w-full'} flex flex-col`}>
           {/* Messages Container */}
-          <div className="h-[500px] overflow-y-auto p-6 space-y-4">
+          <div className="h-[60vh] space-y-4 overflow-y-auto px-3 pb-4 pt-5 sm:h-[65vh] sm:px-5 sm:pb-5 sm:pt-6 lg:h-[500px]">
             {messages.length === 0 && (
-              <div className="text-center text-gray-500 dark:text-gray-400 mt-20">
-                <p className="text-lg mb-4">👋 Welcome! I remember our conversations now!</p>
-                <div className="text-sm space-y-1">
-                  <p>Try asking:</p>
-                  <p className="text-gray-400">"Who has the most runs in Test cricket?"</p>
-                  <p className="text-gray-400">"Show top 5 ODI players by average"</p>
-                  <p className="text-gray-400">Then: "What about T20 format?"</p>
+              <div className="mt-10 rounded-xl border border-dashed border-slate-700 bg-slate-900/60 px-4 py-5 text-center text-slate-400">
+                <p className="mb-3 text-base font-medium text-slate-100">
+                  👋 Welcome! I remember your cricket conversations.
+                </p>
+                <div className="space-y-1 text-xs sm:text-sm">
+                  <p className="text-slate-400">Try asking:</p>
+                  <p className="text-slate-300">&quot;Who has the most runs in Test cricket?&quot;</p>
+                  <p className="text-slate-300">&quot;Show top 5 ODI players by average&quot;</p>
+                  <p className="text-slate-300">Then: &quot;What about T20 format?&quot;</p>
                 </div>
               </div>
             )}
@@ -185,20 +225,20 @@ export default function ChatInterface() {
           </div>
 
           {/* Input Form */}
-          <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-700 p-4">
+          <form onSubmit={handleSubmit} className="border-t border-slate-800 bg-slate-950/60 px-3 py-3 sm:px-5 sm:py-4">
             <div className="flex space-x-2">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask a cricket question... I'll remember our conversation!"
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Ask a cricket question... I remember your context."
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:px-4 sm:text-base"
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
-                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                className="flex items-center space-x-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:text-base"
               >
                 <Send className="w-4 h-4" />
                 <span>Send</span>

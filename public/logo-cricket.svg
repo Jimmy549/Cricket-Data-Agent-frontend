@@ -1,0 +1,36 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Cricket Data Agent Logo</title>
+  <desc id="desc">Stylised cricket ball with seam and data arc</desc>
+  <defs>
+    <linearGradient id="ball" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#020617"/>
+  <circle cx="32" cy="32" r="18" fill="url(#ball)"/>
+  <path
+    d="M18 28c4-4 8.5-6 14-6s10 2 14 6"
+    fill="none"
+    stroke="#bbf7d0"
+    stroke-width="2.2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M18 36c4 4 8.5 6 14 6s10-2 14-6"
+    fill="none"
+    stroke="#bbf7d0"
+    stroke-width="2.2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M22 46c6 4 14 4 20 0"
+    fill="none"
+    stroke="#22c55e"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-dasharray="2 4"
+  />
+  <circle cx="40" cy="20" r="3" fill="#fbbf24"/>
+</svg>
+
