@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
+import Link from 'next/link'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -41,18 +42,18 @@ export default function RootLayout({
                 </div>
               </div>
               <nav className="hidden items-center space-x-4 text-sm text-slate-300 sm:flex">
-                <a href="/" className="hover:text-white">
+                <Link href="/" className="hover:text-white">
                   Chat
-                </a>
-                <a href="/login" className="hover:text-white">
+                </Link>
+                <Link href="/login" className="hover:text-white">
                   Login
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/signup"
                   className="rounded-full bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-sm hover:bg-emerald-400"
                 >
                   Get started
-                </a>
+                </Link>
               </nav>
             </div>
           </header>
