@@ -98,47 +98,86 @@ export default function ChatInterface() {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    const originalInput = input.trim()
     setInput('')
     setIsLoading(true)
 
     try {
-      const response = await api.post(`/cricket/ask`, {
-        question: input.trim(),
-      })
-
-      let assistantMessage: Message;
+      // Check if query asks for multiple formats
+      const multiFormatPattern = /(t20|odi|test).*(?:and|,).*(?:t20|odi|test)/i
+      const isMultiFormat = multiFormatPattern.test(originalInput)
       
-      if (response.data.success) {
-        if (response.data.format === 'table' && Array.isArray(response.data.data)) {
-          // Convert array of objects to table format
-          const columns = Object.keys(response.data.data[0] || {});
-          const rows = response.data.data.map((item: any) => columns.map(col => item[col]));
-          
-          assistantMessage = {
-            id: (Date.now() + 1).toString(),
-            type: 'assistant',
-            content: `Here are the results:`,
-            format: 'table',
-            table: { columns, rows }
-          };
+      if (isMultiFormat) {
+        // Extract player name
+        const playerMatch = originalInput.match(/^([^\s]+(?:\s+[^\s]+)*?)\s+(?:t20|odi|test)/i)
+        const playerName = playerMatch ? playerMatch[1] : originalInput.split(' ')[0]
+        
+        // Create individual queries for each format
+        const formats = ['test', 'odi', 't20']
+        let combinedResponse = `Here are ${playerName}'s stats across all formats:\n\n`
+        
+        for (const format of formats) {
+          try {
+            const response = await api.post(`/cricket/ask`, {
+              question: `${playerName} ${format} stats`,
+            })
+            
+            if (response.data.success && response.data.data !== 'No data found for your query.') {
+              combinedResponse += `**${format.toUpperCase()}:** ${response.data.data}\n\n`
+            }
+          } catch (error) {
+            console.error(`Error fetching ${format} stats:`, error)
+          }
+        }
+        
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: combinedResponse,
+          format: 'text'
+        }
+        
+        setMessages((prev) => [...prev, assistantMessage])
+      } else {
+        // Handle single format query normally
+        const response = await api.post(`/cricket/ask`, {
+          question: originalInput,
+        })
+
+        let assistantMessage: Message;
+        
+        if (response.data.success) {
+          if (response.data.format === 'table' && Array.isArray(response.data.data)) {
+            // Convert array of objects to table format
+            const columns = Object.keys(response.data.data[0] || {});
+            const rows = response.data.data.map((item: any) => columns.map(col => item[col]));
+            
+            assistantMessage = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: `Here are the results:`,
+              format: 'table',
+              table: { columns, rows }
+            };
+          } else {
+            assistantMessage = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: response.data.data || response.data.message,
+              format: 'text'
+            };
+          }
         } else {
           assistantMessage = {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
-            content: response.data.data || response.data.message,
+            content: response.data.message || 'Sorry, I could not process your question.',
             format: 'text'
           };
         }
-      } else {
-        assistantMessage = {
-          id: (Date.now() + 1).toString(),
-          type: 'assistant',
-          content: response.data.message || 'Sorry, I could not process your question.',
-          format: 'text'
-        };
-      }
 
-      setMessages((prev) => [...prev, assistantMessage])
+        setMessages((prev) => [...prev, assistantMessage])
+      }
     } catch (error) {
       console.error('Error:', error)
       
